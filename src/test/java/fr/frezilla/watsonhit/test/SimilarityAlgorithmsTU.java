@@ -1,5 +1,7 @@
 package fr.frezilla.watsonhit.test;
 
+import fr.frezilla.watsonhit.business.similarity.SimilarityAlgorithm;
+import fr.frezilla.watsonhit.business.similarity.SimilarityAlgorithms;
 import org.junit.Test;
 import org.junit.jupiter.api.Assertions;
 

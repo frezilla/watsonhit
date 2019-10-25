@@ -2,6 +2,7 @@ package fr.frezilla.watsonhit.business.similarity;
 
 import java.util.ArrayList;
 import java.util.List;
+import lombok.NoArgsConstructor;
 import lombok.NonNull;
 
 /**
@@ -13,6 +14,7 @@ import lombok.NonNull;
  * 
  * Source {@link https://fr.wikipedia.org/wiki/Distance_de_Jaro-Winkler
  */
+@NoArgsConstructor
 final class Jaro implements SimilarityAlgorithm {
     
     /**
@@ -77,7 +79,6 @@ final class Jaro implements SimilarityAlgorithm {
         return rate;
     }
 
-    @Override
     public double getHitRate(@NonNull String s1, @NonNull String s2) {
         final int s1Length = s1.length();
         final int s2Length = s2.length();
