@@ -1,10 +1,10 @@
-package fr.frezilla.watsonhit.algorithms;
+package fr.frezilla.watsonhit.business.similarity;
 
 import java.util.ArrayList;
 import java.util.List;
 import lombok.NonNull;
 
-public class Levenshtein implements Similarity {
+final class Levenshtein implements SimilarityAlgorithm {
     
     /**
      * Calcul la distance de Levenshtein entre deux chaînes de caractères 

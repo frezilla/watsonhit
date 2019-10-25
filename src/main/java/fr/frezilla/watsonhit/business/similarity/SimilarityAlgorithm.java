@@ -1,6 +1,9 @@
-package fr.frezilla.watsonhit.algorithms;
+package fr.frezilla.watsonhit.business.similarity;
 
-public interface Similarity {
+/**
+ * Algorithme de recherche de similarité entre deux chaines de caractères.
+ */
+public interface SimilarityAlgorithm {
     
     /**
      * Calcule le taux de similarité entre deux chaines de caractères.
