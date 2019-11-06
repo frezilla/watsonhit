@@ -220,6 +220,12 @@ public final class WatsonHit {
             
             int currentLine = 0;
             LOGGER.info("0 %");
+            
+            final int stepSizePercent = 10;
+            final int stepSize = nbCsvLines / stepSizePercent;
+            int nextStep = stepSize;
+            int nextStepPercent = stepSizePercent;
+            
             while (mainReader.hasNext()) {
                 currentLine++;
                 mainReader.next();
@@ -230,11 +236,13 @@ public final class WatsonHit {
                 }
                 reader.close();
                 
-                int percentage = (int) (((double) currentLine / nbCsvLines) * 100.0);
-                if (percentage > 0 && percentage%10 == 0) {
-                    LOGGER.info(percentage + " %");
+                if (currentLine == nextStep) {
+                    LOGGER.info(nextStepPercent + " %");
+                    nextStepPercent += stepSizePercent;
+                    nextStep += stepSize;
                 }
             }
+            LOGGER.info("100 %");
             mainReader.close();
         } catch (IOException e) {
             
