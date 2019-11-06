@@ -1,173 +1,244 @@
 package fr.frezilla.watsonhit;
 
-import fr.frezilla.watsonhit.business.exceptions.BusinessException;
-import fr.frezilla.watsonhit.business.exceptions.BusinessExceptions;
+import fr.frezilla.watsonhit.business.csv.CsvColumnDescription;
+import fr.frezilla.watsonhit.business.csv.CsvDescription;
 import fr.frezilla.watsonhit.reader.file.CsvReader;
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.List;
 import lombok.NoArgsConstructor;
 import lombok.NonNull;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
 import org.apache.commons.cli.DefaultParser;
 import org.apache.commons.cli.Option;
-import org.apache.commons.cli.OptionBuilder;
-import org.apache.commons.cli.OptionGroup;
 import org.apache.commons.cli.Options;
 import org.apache.commons.cli.ParseException;
-import org.apache.log4j.Level;
+import org.apache.commons.configuration2.ex.ConfigurationException;
 import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
+import org.jdom2.JDOMException;
 
 @NoArgsConstructor
 public final class WatsonHit {
-    
+
     public static final Logger LOGGER = LogManager.getRootLogger();
-    
-    private String fileOut;
-    private Level logLevel;
-    
-    private void checkCsvFileIn(String csvFileIn) throws BusinessException {
-        LOGGER.debug("vérification du fichier entrée");
-        File f = new File(csvFileIn);
-        if (!f.exists()) {
-            throw BusinessExceptions.fileInNotFound.getException();
-        }
-        if (!f.isFile()) {
-            throw BusinessExceptions.fileInNotValid.getException();
-        }
-    }
 
-    private void doMain(String[] args) {
-        try {
-            Options CsvReaderOptions = createCsvReaderOptions();
-            
-            CsvReaderArgs csvReaderArgs = parseCsvReaderArgs(args);
-            CsvReader csvReader = createCSVReader(csvReaderArgs);
-            while (csvReader.hasNext()) {
-                String[] columns = csvReader.next();
-                for (String c : columns) {
-                    System.out.print(c);
-                }
-                System.out.println();
-            }
-            csvReader.close();
-        } catch (ParseException | IOException e) {
-            LOGGER.fatal(e.getMessage());
-        } 
-    }
-
+    /**
+     * Méthode main
+     *
+     * @param args
+     */
     public static void main(String[] args) {
         new WatsonHit().doMain(args);
     }
 
-    private Map<String, Object> parseArguments(@NonNull String[] args) throws ParseException {
-        Options options = new Options();
-        
-        options.addOption("d", "debug", false, "activation du mode debug");
-        options.addOption("del", "csv-delimiter", true, "délimiteur de zones du fichier csv");
-        options.addRequiredOption("in", "csv-file-in", true, "fichier csv à traiter");
-        options.addRequiredOption("out", "file-out", true, "fichier résultat");
-        
-        OptionGroup optionGroup = new OptionGroup();
-        optionGroup.addOption(new Option("ctlsize", "csv-delimiter", false, "active le contrôle du nombre de colonnes du fichier csv"));
-        optionGroup.addOption(new Option("wh", "csv-with-header", false, "la première ligne du fichier csv est une ligne de titre"));
-        options.addOptionGroup(optionGroup);
-        
-        CommandLineParser parser = new DefaultParser();
-        CommandLine cmd = parser.parse(options, args);
+    /**
+     * Contrôle la cohérence de la description.
+     * <p>
+     * La description doit définir au moins deux colonnes.
+     * <p>
+     * Au moins une colonne doit être déclarée en tant qu'identifiant et le 
+     * nombre d'identifiants max doit être égal au nombre de colonnes - 1.
+     * 
+     * @param csvDescription 
+     * @throw BusinessException
+     */
+    private void checkCsvDescription(@NonNull CsvDescription csvDescription) throws BusinessException {
+        try {
+            List<CsvColumnDescription> columnsDescriptions = csvDescription.getColumnsDescription();
+            if (columnsDescriptions.isEmpty()) {
+                int nbColumnsDescriptions = columnsDescriptions.size();
+                if (nbColumnsDescriptions < 2) {
+                    throw BusinessExceptions.csvDescriptionNotValid.build("le nombre de colonnes définies est inférieur à 2");
+                }
 
-        logLevel = (cmd.hasOption("d") ? Level.DEBUG : Level.INFO);
-        
-        fileOut = cmd.getOptionValue("out");
-        
-        CsvReaderArgs csvReaderArgs = new CsvReaderArgs();
-        csvReaderArgs.delimiter = (cmd.hasOption("del") ? cmd.getOptionValue("del") : CsvReader.DEFAULT_DELIMITER);
-        csvReaderArgs.fileIn = cmd.getOptionValue("in");
-        csvReaderArgs.withHeader = cmd.hasOption("wh");
-        
-        Map<String, Object> arguments = new HashMap<>();
-        arguments.put("csvReaderArguments", csvReaderArgs);
-        
-        return arguments;
+                int nbIds = 0;
+                columnsDescriptions.stream().filter((d) -> (d.isId())).map((_item) -> 1).reduce(nbIds, Integer::sum);
+
+                if (nbIds == 0) {
+                    throw BusinessExceptions.csvDescriptionNotValid.build("au moins une colonne \"identifiant\" doit être définie");
+                }
+                if (nbIds > nbColumnsDescriptions - 1) {
+                    throw BusinessExceptions.csvDescriptionNotValid.build("le nombre de colonnes \"identifiant\" doit être inférieur au nombre de colonnes total");
+                }
+            }
+        } catch (BusinessException e) {
+            LOGGER.debug(e);
+            throw BusinessExceptions.csvDescriptionError.build();
+        }
     }
 
-    private CsvReader createCSVReader(CsvReaderArgs args) throws FileNotFoundException {
-        LOGGER.debug(String.format("initialisation du traitement de lecture du fichier csv\n"
-                + "%s", args.toString()));
-        CsvReader.Builder builder = new CsvReader.Builder(args.fileIn);
-        if (args.controlColumnsSize) {
-            builder.controlColumnsSize();
+    /**
+     * Contrôle le fichier csv.
+     * <p>
+     * Le nombre de colonnes présentes dans le fichier doit être égal au nombre
+     * de colonnes définies dans le fichier de description lu au préalable.
+     *
+     * @param fileName nom du fichier csv
+     * @param csvDescription description du fichier csv
+     * @return Nombre de lignes du fichier
+     * @throws BusinessException
+     */
+    private int checkCsvFile(@NonNull String fileName, @NonNull CsvDescription csvDescription, @NonNull String csvDelimiter) throws BusinessException {
+        final int nbColumns = csvDescription.getColumnsDescription().size();
+        int nbLines = 0;
+        try {
+            CsvReader reader = CsvReader.builder(fileName).setDelimiter(csvDelimiter).build();
+            while (reader.hasNext()) {
+                nbLines++;
+                String[] row = reader.next();
+                if (nbColumns != row.length) {
+                    throw BusinessExceptions.csvFileFormatError.build(nbLines, nbColumns, row.length);
+                }
+            }
+
+            reader.close();
+        } catch (BusinessException | IOException e) {
+            LOGGER.debug(e);
+            throw BusinessExceptions.csvFileError.build();
         }
-        builder.setDelimiter(args.delimiter);
-        if (args.withHeader) {
-            builder.withHeader();
-        }
-        return builder.build();
+        return nbLines;
     }
 
-    private Options createCsvReaderOptions() {
+    /**
+     * Vérifie la cohérence des paramètres du traitement
+     *
+     * @param parameters
+     */
+    private void checkParameters(@NonNull WatsonHitParameters parameters) throws BusinessException {
+        List<String> errorMessages = WatsonHitParametersChecker.check(parameters);
+
+        if (!errorMessages.isEmpty()) {
+            StringBuilder sb = new StringBuilder();
+            errorMessages.forEach((msg) -> {
+                sb.append(msg).append("\n");
+            });
+            throw BusinessExceptions.parametersError.build(sb.toString());
+        }
+    }
+
+    /**
+     * Créé les options nécessaires au parsing des arguments.
+     *
+     * @return
+     */
+    private Options createOptions() {
         Options options = new Options();
-        
+
+        options.addOption(Option.builder("csvDelimiter").desc("délimiteur de zones du fichier csv").hasArg().build());
+        options.addOption(Option.builder("csvDescriptorFile").desc("fichier de description du fichier csv").hasArg().required().build());
+        options.addOption(Option.builder("csvFile").desc("fichier csv à traiter").hasArg().required().build());
+        options.addOption(Option.builder("resultFile").desc("fichier de résultat").hasArg().required().build());
+
         return options;
     }
 
-    private CsvReaderArgs parseCsvReaderArgs(String[] args) {
-        Options options = new Options();
-        
-        options.addOption(Option.builder("csv-delimiter").hasArg(true).desc("délimiteur de zones du fichier csv").build());
-        options.addOption(Option.builder("csv-filename").hasArg(true).desc("nom du fichier csv à traiter").build());
-        
-        options.addOption(Option.builder("csv-withheader").hasArg(false).desc("la première ligne du fichier csv est une ligne de titre").build());
+    /**
+     * Exécute le traitement principal
+     * 
+     * @param args 
+     */
+    private void doMain(String[] args) {
+        try {
+            LOGGER.info("analyse des paramètres");
+            WatsonHitParameters parameters = parseArguments(args, createOptions());
+            LOGGER.info("paramètres \n" + parameters.toString());
 
-        options.addOption("d", "debug", false, "activation du mode debug");
-        options.addOption("del", "csv-delimiter", true, "délimiteur de zones du fichier csv");
-        options.addRequiredOption("in", "csv-file-in", true, "fichier csv à traiter");
-        options.addRequiredOption("out", "file-out", true, "fichier résultat");
-        
-        OptionGroup optionGroup = new OptionGroup();
-        optionGroup.addOption(new Option("ctlsize", "csv-delimiter", false, "active le contrôle du nombre de colonnes du fichier csv"));
-        optionGroup.addOption(new Option("wh", "csv-with-header", false, "la première ligne du fichier csv est une ligne de titre"));
-        options.addOptionGroup(optionGroup);
-        
-        CommandLineParser parser = new DefaultParser();
-        CommandLine cmd = parser.parse(options, args);
+            LOGGER.info("contrôle des paramètres");
+            checkParameters(parameters);
 
-        logLevel = (cmd.hasOption("d") ? Level.DEBUG : Level.INFO);
-        
-        fileOut = cmd.getOptionValue("out");
-        
-        CsvReaderArgs csvReaderArgs = new CsvReaderArgs();
-        csvReaderArgs.delimiter = (cmd.hasOption("del") ? cmd.getOptionValue("del") : CsvReader.DEFAULT_DELIMITER);
-        csvReaderArgs.fileIn = cmd.getOptionValue("in");
-        csvReaderArgs.withHeader = cmd.hasOption("wh");
-        
-        Map<String, Object> arguments = new HashMap<>();
-        arguments.put("csvReaderArguments", csvReaderArgs);
-        
-        return arguments;        
-    }
-    
-    private static class CsvReaderArgs {
-        private boolean controlColumnsSize;
-        private String delimiter;
-        private String fileIn;
-        private boolean withHeader; 
-        
-        @Override
-        public String toString() {
-            return String.format("-> nom du fichier : <%s>\n"
-                    + "-> délimiteur : <%s>\n"
-                    + "-> entêtes de colonnes incluses : <%s>\n"
-                    + "-> contrôle du nombre de colonnes : <%s>", 
-                    fileIn,
-                    delimiter,
-                    withHeader ? "oui" : "non",
-                    controlColumnsSize ? "oui" : "non");
+            LOGGER.info("chargement de la description du fichier csv");
+            CsvDescription csvDescription = loadCsvDescription(parameters.getCsvDescriptorFile());
+            LOGGER.info("contrôle de la description du fichier csv");
+            checkCsvDescription(csvDescription);
+
+            LOGGER.info("initialisation du fichier de résultat");
+
+            LOGGER.info("vérification du fichier csv");
+            int nbCsvLines = checkCsvFile(parameters.getCsvFile(), csvDescription, parameters.getCsvDelimiter());
+
+            LOGGER.info("comparaison des données");
+            File tempFile = run(parameters.getCsvFile(), csvDescription, parameters.getCsvDelimiter(), nbCsvLines);
+
+            LOGGER.info("écriture des résultats dans le fichier");
+            
+            LOGGER.info("Fin du traitement, consultez le fichier <" + parameters.getResultFile() + "> pour visualiser le résultat du traitement");
+        } catch (BusinessException e) {
+            LOGGER.info("L'erreur ci-dessous a été détectée, activez le mode debug pour avoir plus d'informations sur l'origine du problème.");
+            LOGGER.info(" -> " + e.getMessage());
+        } catch (Exception e) {
+            LOGGER.fatal("Erreur bloquante non gérée, activez le mode debug pour avoir plus d'informations sur l'origine du problème.");
+            LOGGER.debug(e);
         }
     }
 
+    /**
+     * Charge la description du fichier csv depuis un fichier au format xml.
+     *
+     * @param fileName nom du fichier xml qui décrit le fichier csv
+     * @return Description
+     * @throws BusinessException
+     */
+    private CsvDescription loadCsvDescription(@NonNull String fileName) throws BusinessException {
+        try {
+            return CsvDescription.builder(fileName).load();
+        } catch (ConfigurationException | IOException | JDOMException e) {
+            LOGGER.debug(e);
+            throw BusinessExceptions.csvDescriptionError.build();
+        }
+    }
+
+    /**
+     * Parse les arguments passés en ligne de commande
+     *
+     * @param args
+     * @param options
+     * @return
+     * @throws ParseException
+     */
+    private WatsonHitParameters parseArguments(@NonNull String[] args, @NonNull Options options) throws BusinessException {
+        try {
+            CommandLineParser parser = new DefaultParser();
+            CommandLine cmd = parser.parse(options, args);
+
+            return new WatsonHitParameters(
+                    cmd.hasOption("csvDelimiter") ? cmd.getOptionValue("csvDelimiter") : CsvReader.DEFAULT_DELIMITER,
+                    cmd.getOptionValue("csvDescriptorFile"),
+                    cmd.getOptionValue("csvFile"),
+                    cmd.getOptionValue("resultFile"));
+        } catch (ParseException e) {
+            LOGGER.debug(e);
+            throw BusinessExceptions.argumentsError.build();
+        }
+    }
+
+    private File run(@NonNull String fileName, @NonNull CsvDescription csvDescription, @NonNull String csvDelimiter, int nbCsvLines) throws BusinessException {
+        try {
+            CsvReader.Builder builder = CsvReader.builder(fileName).setDelimiter(csvDelimiter);
+            CsvReader mainReader = builder.build();
+            
+            int currentLine = 0;
+            LOGGER.info("0 %");
+            while (mainReader.hasNext()) {
+                currentLine++;
+                mainReader.next();
+                
+                CsvReader reader = builder.build();
+                while (reader.hasNext()) {
+                    reader.next();
+                }
+                reader.close();
+                
+                int percentage = (int) (((double) currentLine / nbCsvLines) * 100.0);
+                if (percentage > 0 && percentage%10 == 0) {
+                    LOGGER.info(percentage + " %");
+                }
+            }
+            mainReader.close();
+        } catch (IOException e) {
+            
+        }
+        return null;
+    }
 }
