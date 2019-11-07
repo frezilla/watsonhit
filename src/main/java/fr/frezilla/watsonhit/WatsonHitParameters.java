@@ -1,25 +1,36 @@
 package fr.frezilla.watsonhit;
 
 import lombok.AccessLevel;
-import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NonNull;
 
-@AllArgsConstructor(access = AccessLevel.PACKAGE)
 @Getter(AccessLevel.PACKAGE)
 class WatsonHitParameters {
 
     @NonNull
-    private String csvDelimiter;
+    private final String csvDelimiter;
 
     @NonNull
-    private String csvDescriptorFile;
+    private final String csvDescriptorFile;
 
     @NonNull
-    private String csvFile;
+    private final String csvFile;
 
+    private double minSimilarity;
+    
     @NonNull
-    private String resultFile;
+    private final String resultFile;
+
+    WatsonHitParameters(String csvDelimiter, String csvDescriptorFile, String csvFile, double minSimilarity, String resultFile) {
+        if (minSimilarity < 0 || minSimilarity > 1) {
+            throw new IllegalArgumentException();
+        }
+        this.csvDelimiter = csvDelimiter;
+        this.csvDescriptorFile = csvDescriptorFile;
+        this.csvFile = csvFile;
+        this.minSimilarity = minSimilarity;
+        this.resultFile = resultFile;
+    }
 
     @Override
     public String toString() {
