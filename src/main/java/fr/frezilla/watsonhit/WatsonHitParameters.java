@@ -22,7 +22,7 @@ class WatsonHitParameters {
     private final String resultFile;
 
     WatsonHitParameters(String csvDelimiter, String csvDescriptorFile, String csvFile, double minSimilarity, String resultFile) {
-        if (minSimilarity < 0 || minSimilarity > 1) {
+        if (minSimilarity < 0.0 || minSimilarity > 100.0) {
             throw new IllegalArgumentException();
         }
         this.csvDelimiter = csvDelimiter;

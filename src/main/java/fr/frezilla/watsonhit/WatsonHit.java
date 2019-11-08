@@ -53,7 +53,6 @@ public final class WatsonHit {
         outputStream = System.out;
     }
 
-
     /**
      * Contrôle la cohérence de la description.
      * <p>
@@ -436,7 +435,7 @@ public final class WatsonHit {
                                         totalWeight += weight;
                                     }
                                 }
-                                similarity = (totalWeight == 0.0) ? 0.0 : similarity / totalWeight;
+                                similarity = (totalWeight == 0.0) ? 0.0 : similarity / totalWeight * 100.0;
                                 if (similarity >= minSimilarity) {
                                     insertResultInWorkingFile(writer, csvDescription, mainColumns, currentColumns, similarity);
                                 }
