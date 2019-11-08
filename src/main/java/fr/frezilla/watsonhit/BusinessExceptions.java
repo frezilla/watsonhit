@@ -8,7 +8,8 @@ enum BusinessExceptions {
     csvFileFormatError("le format du fichier csv n'est pas conforme à la description chargée (ligne %d - nombre de colonnes attendues : %d ; nombre de colonnes lues : %d"),
     fileInNotFound("le fichier d'entrée est introuvable"),
     fileInNotValid("le fichier d'entrée n'est pas un fichier valide"),
-    parametersError("les paramètres d'entrée du traitement ne sont pas valides \n%s");
+    parametersError("les paramètres d'entrée du traitement ne sont pas valides \n%s"),
+    resultFileError("le fichier de résultat %s ne peut pas être créé");
 
     private final String businessExceptionMsg;
 

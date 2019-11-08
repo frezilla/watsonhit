@@ -10,10 +10,13 @@ import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.io.PrintStream;
 import java.io.Writer;
+import java.util.Date;
 import java.util.List;
-import lombok.NoArgsConstructor;
 import lombok.NonNull;
+import me.tongfei.progressbar.ProgressBar;
+import me.tongfei.progressbar.ProgressBarStyle;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
 import org.apache.commons.cli.DefaultParser;
@@ -22,15 +25,16 @@ import org.apache.commons.cli.Options;
 import org.apache.commons.cli.ParseException;
 import org.apache.commons.configuration2.ex.ConfigurationException;
 import org.apache.commons.io.FileUtils;
-import org.apache.log4j.LogManager;
+import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.time.DateFormatUtils;
 import org.apache.log4j.Logger;
 import org.jdom2.JDOMException;
 
-@NoArgsConstructor
 public final class WatsonHit {
 
-    public static final Logger LOGGER = LogManager.getRootLogger();
-
+    private static final int LINELENGTH = 80;
+    private static final Logger LOGGER = Logger.getLogger(WatsonHit.class);
+    
     /**
      * Méthode main
      *
@@ -40,15 +44,25 @@ public final class WatsonHit {
         new WatsonHit().doMain(args);
     }
 
+    private final PrintStream outputStream;
+
+    /**
+     * Constructeur
+     */
+    private WatsonHit() {
+        outputStream = System.out;
+    }
+
+
     /**
      * Contrôle la cohérence de la description.
      * <p>
      * La description doit définir au moins deux colonnes.
      * <p>
-     * Au moins une colonne doit être déclarée en tant qu'identifiant et le 
+     * Au moins une colonne doit être déclarée en tant qu'identifiant et le
      * nombre d'identifiants max doit être égal au nombre de colonnes - 1.
-     * 
-     * @param csvDescription 
+     *
+     * @param csvDescription
      * @throw BusinessException
      */
     private void checkCsvDescription(@NonNull CsvDescription csvDescription) throws BusinessException {
@@ -71,7 +85,7 @@ public final class WatsonHit {
                 }
             }
         } catch (BusinessException e) {
-            LOGGER.debug(e);
+            LOGGER.error(e);
             throw BusinessExceptions.csvDescriptionError.build();
         }
     }
@@ -102,7 +116,7 @@ public final class WatsonHit {
 
             reader.close();
         } catch (BusinessException | IOException e) {
-            LOGGER.debug(e);
+            LOGGER.error(e);
             throw BusinessExceptions.csvFileError.build();
         }
         return nbLines;
@@ -125,6 +139,13 @@ public final class WatsonHit {
         }
     }
 
+    /**
+     * Copie le fichier de travail vers le fichier de résultat
+     *
+     * @param tempFile
+     * @param resultFile
+     * @throws IOException
+     */
     private void copyFile(@NonNull File tempFile, @NonNull File resultFile) throws IOException {
         FileUtils.copyFile(tempFile, resultFile);
     }
@@ -147,52 +168,82 @@ public final class WatsonHit {
     }
 
     /**
+     * Créé le fichier de résultat
+     *
+     * @param resultFile
+     * @return
+     * @throws BusinessException
+     */
+    private File createResultFile(String resultFile) throws BusinessException {
+        try {
+            File f = new File(resultFile);
+            if (f.exists()) {
+                f.delete();
+            }
+            f.createNewFile();
+            return f;
+        } catch (IOException e) {
+            LOGGER.error(e);
+            throw BusinessExceptions.resultFileError.build(resultFile);
+        }
+    }
+
+    /**
      * Exécute le traitement principal
-     * 
-     * @param args 
+     *
+     * @param args
      */
     private void doMain(String[] args) {
         try {
-            LOGGER.info("Analyse des paramètres");
+            printPadded("Analyse des paramètres...");
             WatsonHitParameters parameters = parseArguments(args, createOptions());
-            LOGGER.info("Paramètres \n" + parameters.toString());
+            outputStream.println("[OK]");
 
-            LOGGER.info("Contrôle des paramètres");
+            printPadded("Contrôle des paramètres...");
             checkParameters(parameters);
+            outputStream.println("[OK]");
 
-            LOGGER.info("Chargement de la description du fichier csv");
+            printPadded("Chargement de la description du fichier csv...");
             CsvDescription csvDescription = loadCsvDescription(parameters.getCsvDescriptorFile());
-            LOGGER.info("Contrôle de la description du fichier csv");
+            outputStream.println("[OK]");
+            
+            printPadded("Contrôle de la description du fichier csv...");
             checkCsvDescription(csvDescription);
+            outputStream.println("[OK]");
 
-            LOGGER.info("Initialisation du fichier de résultat");
-            File resultFile = new File(parameters.getResultFile());
+            printPadded("Initialisation du fichier de résultat...");
+            File resultFile = createResultFile(parameters.getResultFile());
+            outputStream.println("[OK]");
 
-            LOGGER.info("Vérification du fichier csv");
+            printPadded("Vérification du fichier csv...");
             int nbCsvLines = checkCsvFile(parameters.getCsvFile(), csvDescription, parameters.getCsvDelimiter());
+            outputStream.println("[OK]");
 
-            LOGGER.info("Comparaison des données");
+            outputStream.println("Comparaison des données...");
             File tempFile = run(parameters.getCsvFile(), csvDescription, parameters.getCsvDelimiter(), nbCsvLines, parameters.getMinSimilarity());
 
-            LOGGER.info("Ecriture des résultats dans le fichier");
+            printPadded("Ecriture des résultats dans le fichier...");
             copyFile(tempFile, resultFile);
-            
+            outputStream.println("[OK]");
+
+            printPadded("Nettoyage des fichiers de travail...");
             tempFile.delete();
-            
-            LOGGER.info("Fin du traitement, consultez le fichier <" + parameters.getResultFile() + "> pour visualiser le résultat du traitement");
+            outputStream.println("[OK]");
+
+            outputStream.println("Fin du traitement, consultez le fichier <" + parameters.getResultFile() + "> pour visualiser le résultat du traitement");
         } catch (BusinessException e) {
-            LOGGER.info("L'erreur ci-dessous a été détectée, activez le mode debug pour avoir plus d'informations sur l'origine du problème.");
-            LOGGER.info("-> " + e.getMessage());
+            outputStream.println("[KO]\nL'erreur ci-dessous a été détectée, activez le mode debug pour avoir plus d'informations sur l'origine du problème.");
+            outputStream.println("-> " + e.getMessage());
         } catch (Exception e) {
-            LOGGER.fatal("Erreur bloquante non gérée, activez le mode debug pour avoir plus d'informations sur l'origine du problème.");
-            LOGGER.debug(e);
+            outputStream.println("[KO]\nErreur bloquante non gérée, activez le mode debug pour avoir plus d'informations sur l'origine du problème.");
+            outputStream.println(e);
         }
     }
 
     private String[] filterAndFormatColumns(@NonNull String[] wkColumns, @NonNull CsvDescription csvDescription) {
         List<CsvColumnDescription> columnsDescriptions = csvDescription.getColumnsDescription();
         String[] columns = new String[wkColumns.length];
-        
+
         for (int i = 0; i < wkColumns.length; i++) {
             CsvColumnDescription d = columnsDescriptions.get(i);
             String value = null;
@@ -207,32 +258,74 @@ public final class WatsonHit {
             }
             columns[i] = value;
         }
-        
+
         return columns;
     }
 
-    private void insertResultInFile(Writer writer, CsvDescription csvDescription, String[] columns1, String[] columns2, double similarity) throws IOException {
+    private void finalizeWorkingFile(@NonNull Writer writer) throws IOException {
+        writer.write(String.format("</table></div><p>Document généré le %s</p></body>", DateFormatUtils.format(new Date(), "dd/MM/yyyy à HH:mm:ss")));
+    }
+
+    private void insertResultInWorkingFile(Writer writer, CsvDescription csvDescription, String[] columns1, String[] columns2, double similarity) throws IOException {
         StringBuilder sb1 = new StringBuilder();
         StringBuilder sb2 = new StringBuilder();
-        
+
         List<CsvColumnDescription> columnsDescriptions = csvDescription.getColumnsDescription();
-        
+
         int i = 0;
         for (CsvColumnDescription d : columnsDescriptions) {
-            if (d.isId()) {
-                if (sb1.length() > 0) {
-                    sb1.append(", ");
-                }
-                sb1.append(columns1[i]);
-                
-                if (sb2.length() > 0) {
-                    sb2.append(", ");
-                }
-                sb2.append(columns2[i]);
+            if (d.isId() || d.isDisplayed()) {
+                sb1.append("<td>").append(columns1[i]).append("</td>");
+                sb2.append("<td>").append(columns2[i]).append("</td>");
             }
             i++;
         }
-        writer.write(String.format("[ <%s> - <%s> ] => %.2f\n", sb1.toString(), sb2.toString(), similarity));
+        writer.write("<tr>" + sb1.toString() + sb2.toString() + String.format("<td>%.2f</td>", similarity) + "</tr>");
+    }
+
+    /**
+     * Initialise le contenu du fichier de travail
+     * @param workingFile 
+     * @param csvDescription 
+     */
+    private void intializeWorkingFile(@NonNull Writer writer, @NonNull CsvDescription csvDescription) throws IOException {
+        writer.write("<!DOCTYPE html>"
+                + "<html>"
+                + "<head>"
+                + "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">"
+                + "<style>"
+                + "table {"
+                + "border-collapse: collapse;"
+                + "border-spacing: 0;"
+                + "width: 100%;"
+                + "border: 1px solid #ddd;"
+                + "}"
+                + " "
+                + "th, td {"
+                + "text-align: left;"
+                + "padding: 8px;"
+                + "}"
+                + " "
+                + "tr:nth-child(even){background-color: #f2f2f2}"
+                + "</style>"
+                + "</head>"
+                + "<body>"
+                + " "
+                + "<h2>Résultat de la recherche lignes similaires</h2>"
+                + " "
+                + "<div style=\"overflow-x:auto;\">"
+                + "<table>"
+                + "<tr>");
+        List<CsvColumnDescription> columnsDescriptions = csvDescription.getColumnsDescription();
+        StringBuilder sb1 = new StringBuilder();
+        StringBuilder sb2 = new StringBuilder();
+        columnsDescriptions.forEach(d -> {
+            if (d.isDisplayed() || d.isId()) {
+                sb1.append("<th>").append(d.getName()).append("&nbsp;<small>(1)</small></th>");
+                sb2.append("<th>").append(d.getName()).append("&nbsp;<small>(2)</small></th>");
+            }
+        });
+        writer.write(sb1.toString() + sb2.toString() + "<th>Taux</th></tr>");
     }
 
     /**
@@ -246,7 +339,7 @@ public final class WatsonHit {
         try {
             return CsvDescription.builder(fileName).load();
         } catch (ConfigurationException | IOException | JDOMException e) {
-            LOGGER.debug(e);
+            LOGGER.error(e);
             throw BusinessExceptions.csvDescriptionError.build();
         }
     }
@@ -271,81 +364,98 @@ public final class WatsonHit {
                     cmd.hasOption("minSimilarity") ? Double.parseDouble(cmd.getOptionValue("minSimilarity")) : 0.0,
                     cmd.getOptionValue("resultFile"));
         } catch (ParseException e) {
-            LOGGER.debug(e);
+            LOGGER.error(e);
             throw BusinessExceptions.argumentsError.build();
         }
     }
 
+    private void printPadded(@NonNull String s) {
+        outputStream.print(StringUtils.rightPad(s, LINELENGTH));
+        outputStream.flush();
+    }
+
     /**
      * Exécute le traitement de comparaison des lignes du fichier.
-     * 
+     *
      * @param fileName
      * @param csvDescription
      * @param csvDelimiter
      * @param nbCsvLines
-     * @param minSimilarity 
+     * @param minSimilarity
      * @return
-     * @throws BusinessException 
+     * @throws BusinessException
      */
     private File run(@NonNull String fileName, @NonNull CsvDescription csvDescription, @NonNull String csvDelimiter, int nbCsvLines, double minSimilarity) throws BusinessException {
         try {
             File workingFile = File.createTempFile("watsonHit", ".temp");
-            BufferedWriter writer = new BufferedWriter(new FileWriter(workingFile));
             
-            CsvReader.Builder builder = CsvReader.builder(fileName).setDelimiter(csvDelimiter);
-            CsvReader mainReader = builder.build();
-            
-            SimilarityAlgorithm jaroAlgo = SimilarityAlgorithms.JARO.getAlgorithm();
-            SimilarityAlgorithm jaroWinklerAlgo = SimilarityAlgorithms.JARO_WINKLER.getAlgorithm();
-            
-            List<CsvColumnDescription> columnsDescriptions = csvDescription.getColumnsDescription();
-            
-            int currentLineMainReader = 0;
-            while (mainReader.hasNext()) {
-                currentLineMainReader++;
-                String[] mainColumns = mainReader.next();
-                String[] mainColumnsToCompare = filterAndFormatColumns(mainColumns, csvDescription);
+            try (BufferedWriter writer = new BufferedWriter(new FileWriter(workingFile))) {
+                intializeWorkingFile(writer, csvDescription);
                 
-                CsvReader reader = builder.build();
-                int currentLine = 0;
-                while (reader.hasNext()) {
-                    currentLine++;
-                    String[] wkColumns = reader.next();
-                    if (currentLine != currentLineMainReader) {
-                        String[] currentColumns = wkColumns;
-                        String[] currentColumnsToCompare = filterAndFormatColumns(currentColumns, csvDescription);
-                        
-                        double similarity = 0.0;
-                        double totalWeight = 0.0;
-                        for (int i = 0; i < mainColumnsToCompare.length; i++) {
-                            double weight = columnsDescriptions.get(i).getWeight();
-                            if (weight != 0.0 && mainColumnsToCompare[i] != null && currentColumnsToCompare[i] != null) {
-                                if (mainColumnsToCompare[i].length() == 0 || currentColumnsToCompare[i].length() == 0) {
-                                    similarity += 0.0;
-                                } else if (mainColumnsToCompare[i].equals(currentColumns[i])) {
-                                    similarity += 1.0 * weight;
-                                } else {
-                                    double d1 = jaroAlgo.getHitRate(mainColumnsToCompare[i], currentColumnsToCompare[i]);
-                                    double d2 = jaroWinklerAlgo.getHitRate(mainColumnsToCompare[i], currentColumnsToCompare[i]);
-                                
-                                    similarity += weight * (d1 + d2) / 2;
+                CsvReader.Builder builder = CsvReader.builder(fileName).setDelimiter(csvDelimiter);
+                CsvReader mainReader = builder.build();
+
+                SimilarityAlgorithm jaroAlgo = SimilarityAlgorithms.JARO.getAlgorithm();
+                SimilarityAlgorithm jaroWinklerAlgo = SimilarityAlgorithms.JARO_WINKLER.getAlgorithm();
+
+                List<CsvColumnDescription> columnsDescriptions = csvDescription.getColumnsDescription();
+
+                int currentLineMainReader = 0;
+
+                try (ProgressBar progressBar = new ProgressBar("", nbCsvLines, ProgressBarStyle.ASCII)) {
+
+                    while (mainReader.hasNext()) {
+                        currentLineMainReader++;
+                        String[] mainColumns = mainReader.next();
+                        String[] mainColumnsToCompare = filterAndFormatColumns(mainColumns, csvDescription);
+
+                        CsvReader reader = builder.build();
+                        int currentLine = 0;
+                        while (reader.hasNext()) {
+                            currentLine++;
+                            String[] wkColumns = reader.next();
+                            if (currentLine > currentLineMainReader) {
+                                String[] currentColumns = wkColumns;
+                                String[] currentColumnsToCompare = filterAndFormatColumns(currentColumns, csvDescription);
+
+                                double similarity = 0.0;
+                                double totalWeight = 0.0;
+                                for (int i = 0; i < mainColumnsToCompare.length; i++) {
+                                    double weight = columnsDescriptions.get(i).getWeight();
+                                    if (weight != 0.0 && mainColumnsToCompare[i] != null && currentColumnsToCompare[i] != null) {
+                                        if (mainColumnsToCompare[i].length() == 0 || currentColumnsToCompare[i].length() == 0) {
+                                            similarity += 0.0;
+                                        } else if (mainColumnsToCompare[i].equals(currentColumns[i])) {
+                                            similarity += 1.0 * weight;
+                                        } else {
+                                            double d1 = jaroAlgo.getHitRate(mainColumnsToCompare[i], currentColumnsToCompare[i]);
+                                            double d2 = jaroWinklerAlgo.getHitRate(mainColumnsToCompare[i], currentColumnsToCompare[i]);
+
+                                            similarity += weight * (d1 + d2) / 2;
+                                        }
+                                        totalWeight += weight;
+                                    }
                                 }
-                                totalWeight += weight;
+                                similarity = (totalWeight == 0.0) ? 0.0 : similarity / totalWeight;
+                                if (similarity >= minSimilarity) {
+                                    insertResultInWorkingFile(writer, csvDescription, mainColumns, currentColumns, similarity);
+                                }
                             }
                         }
-                        similarity = (totalWeight == 0.0) ? 0.0 : similarity / totalWeight;
-                        if (similarity >= minSimilarity) {
-                            insertResultInFile(writer, csvDescription, mainColumns, currentColumns, similarity);
-                        }
+                        reader.close();
+                        progressBar.step();
                     }
                 }
-                reader.close();
+                outputStream.println();
+                mainReader.close();
+                
+                finalizeWorkingFile(writer);
+                
+                writer.flush();
             }
-            mainReader.close();
-            writer.flush();
-            writer.close();
             return workingFile;
         } catch (IOException e) {
+            LOGGER.error(e);
             throw BusinessExceptions.argumentsError.build();
         }
     }

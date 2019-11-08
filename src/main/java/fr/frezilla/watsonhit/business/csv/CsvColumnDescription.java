@@ -11,6 +11,7 @@ import org.apache.commons.lang3.StringUtils;
 public final class CsvColumnDescription {
 
     private String description;
+    private boolean displayed;
     private boolean id;
     private boolean ignoreSpecialCharacters;
     private boolean matchCase;
@@ -45,69 +46,81 @@ public final class CsvColumnDescription {
         return String.format(
                 "[name = <%s>], "
                 + "[description = <%s>], "
+                + "[displayed = <%s>], "
                 + "[id = %s], "
                 + "[ignoreSpecialCharacters = %s], "
                 + "[matchCase = %s], "
                 + "[weight = %f]",
-                name, description, returnOuiNon(id), returnOuiNon(ignoreSpecialCharacters), returnOuiNon(matchCase), weight);
+                name, description, returnOuiNon(displayed), returnOuiNon(id), returnOuiNon(ignoreSpecialCharacters), returnOuiNon(matchCase), weight);
     }
 
-    public static class Build {
+    public static class Builder {
 
         private String description = "";
+        private boolean displayed = false;
         private boolean id = false;
         private boolean ignoreSpecialCharacters = false;
         private boolean matchCase = true;
         private final String name;
         private double weight = 0.0;
 
-        public Build(String name) {
+        public Builder(String name) {
             this.name = name;
         }
 
         public CsvColumnDescription build() {
             CsvColumnDescription instance = new CsvColumnDescription(name);
             instance.setDescription(description);
+            instance.setDisplayed(displayed);
             instance.setId(id);
             instance.setIgnoreSpecialCharacters(ignoreSpecialCharacters);
             instance.setMatchCase(matchCase);
             instance.setWeight(weight);
             return instance;
         }
+        
+        public Builder isDisplayed() {
+            return isDisplayed(true);
+        }
 
-        public Build isId() {
+        public Builder isDisplayed(boolean b) {
+            displayed = b;
+            return this;
+        }
+        
+        public Builder isId() {
             return isId(true);
         }
 
-        public Build isId(boolean b) {
+        public Builder isId(boolean b) {
             this.id = b;
             return this;
         }
 
-        public Build ignoreSpeacialCharacters() {
+        public Builder ignoreSpeacialCharacters() {
             return ignoreSpeacialCharacters(true);
         }
 
-        public Build ignoreSpeacialCharacters(boolean b) {
+        public Builder ignoreSpeacialCharacters(boolean b) {
             this.ignoreSpecialCharacters = b;
             return this;
         }
 
-        public Build matchCase() {
+        public Builder matchCase() {
             return matchCase(true);
         }
 
-        public Build matchCase(boolean b) {
+        public Builder matchCase(boolean b) {
             this.matchCase = b;
             return this;
         }
 
-        public Build setDescription(String description) {
+        public Builder setDescription(String description) {
             this.description = description;
             return null;
         }
 
-        public Build setWeight(double w) {
+        public Builder setWeight(double w) {
             this.weight = w;
             return this;
         }

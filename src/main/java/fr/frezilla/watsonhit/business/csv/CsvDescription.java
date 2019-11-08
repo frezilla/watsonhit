@@ -15,6 +15,7 @@ import org.jdom2.input.SAXBuilder;
  * Charge la description du fichier Csv depuis un fichier Xml.
  */
 public class CsvDescription {
+
     /**
      * Retourne le builder lié à la classe
      *
@@ -32,10 +33,14 @@ public class CsvDescription {
         loadXmlFile(fileName);
     }
 
+    /**
+     * Retourne la liste des descriptions des colonnes
+     *
+     * @return
+     */
     public List<CsvColumnDescription> getColumnsDescription() {
-        return new ArrayList<CsvColumnDescription>(columnsDefinitions);
+        return new ArrayList<>(columnsDefinitions);
     }
-
 
     /**
      * Charge la description du fichier csv depuis le fichier xml de
@@ -55,13 +60,18 @@ public class CsvDescription {
         List<Element> colElts = columns.getChildren("column");
         for (Element e : colElts) {
             String description = e.getAttributeValue("description");
+            String display = e.getAttributeValue("display");
             String id = e.getAttributeValue("id");
             String ignoreSpecialCharacters = e.getAttributeValue("ignoreSpecialCharacters");
             String matchCase = e.getAttributeValue("matchCase");
             String name = e.getAttributeValue("name");
             String weight = e.getAttributeValue("weight");
 
-            CsvColumnDescription.Build builder = new CsvColumnDescription.Build(name);
+            CsvColumnDescription.Builder builder = new CsvColumnDescription.Builder(name);
+            
+            if (StringUtils.equals("1", display)) {
+                builder.isDisplayed();
+            }
             if (StringUtils.isNotBlank(description)) {
                 builder.setDescription(description);
             }
@@ -103,5 +113,4 @@ public class CsvDescription {
             return csvDescription;
         }
     }
-
 }
