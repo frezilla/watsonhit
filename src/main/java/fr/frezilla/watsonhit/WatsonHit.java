@@ -20,6 +20,7 @@ import me.tongfei.progressbar.ProgressBarStyle;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
 import org.apache.commons.cli.DefaultParser;
+import org.apache.commons.cli.HelpFormatter;
 import org.apache.commons.cli.Option;
 import org.apache.commons.cli.Options;
 import org.apache.commons.cli.ParseException;
@@ -34,7 +35,7 @@ public final class WatsonHit {
 
     private static final int LINELENGTH = 80;
     private static final Logger LOGGER = Logger.getLogger(WatsonHit.class);
-    
+
     /**
      * Méthode main
      *
@@ -157,11 +158,11 @@ public final class WatsonHit {
     private Options createOptions() {
         Options options = new Options();
 
-        options.addOption(Option.builder("csvDelimiter").desc("délimiteur de zones du fichier csv").hasArg().build());
-        options.addOption(Option.builder("csvDescriptorFile").desc("fichier de description du fichier csv").hasArg().required().build());
-        options.addOption(Option.builder("csvFile").desc("fichier csv à traiter").hasArg().required().build());
-        options.addOption(Option.builder("minSimilarity").desc("fichier csv à traiter").hasArg().build());
-        options.addOption(Option.builder("resultFile").desc("fichier de résultat").hasArg().required().build());
+        options.addOption(Option.builder("d").longOpt("csvDelimiter").desc("délimiteur des zones du fichier csv").hasArg().build());
+        options.addOption(Option.builder("desc").longOpt("csvDescriptorFile").desc("fichier de description du fichier csv").hasArg().required().build());
+        options.addOption(Option.builder("csvin").longOpt("csvFile").desc("fichier csv à traiter").hasArg().required().build());
+        options.addOption(Option.builder("taux").longOpt("minSimilarity").desc("taux de similarité au delà duquel on sauvegarde le résultat").hasArg().build());
+        options.addOption(Option.builder("res").longOpt("resultFile").desc("fichier de résultat").hasArg().required().build());
 
         return options;
     }
@@ -188,15 +189,35 @@ public final class WatsonHit {
     }
 
     /**
+     * Affiche l'aide de saisie des arguments du programme.
+     *
+     * @param options
+     */
+    private void displayHelp(@NonNull Options options) {
+        final HelpFormatter formatter = new HelpFormatter();
+        formatter.printHelp(getClass().getName(), options, true);
+        System.exit(0);
+    }
+
+    /**
      * Exécute le traitement principal
      *
      * @param args
      */
     private void doMain(String[] args) {
         try {
+            final Option helpOption = Option.builder("h").longOpt("help").desc("affiche l'aide").build();
+            final Options helpOptions = new Options();
+            helpOptions.addOption(helpOption);
+            final Options options = createOptions();
+
             printPadded("Analyse des paramètres...");
-            WatsonHitParameters parameters = parseArguments(args, createOptions());
+            WatsonHitParameters parameters = parseArguments(args, options, helpOptions);
             outputStream.println("[OK]");
+
+            if (parameters.isHelpMode()) {
+                displayHelp(options);
+            }
 
             printPadded("Contrôle des paramètres...");
             checkParameters(parameters);
@@ -205,7 +226,7 @@ public final class WatsonHit {
             printPadded("Chargement de la description du fichier csv...");
             CsvDescription csvDescription = loadCsvDescription(parameters.getCsvDescriptorFile());
             outputStream.println("[OK]");
-            
+
             printPadded("Contrôle de la description du fichier csv...");
             checkCsvDescription(csvDescription);
             outputStream.println("[OK]");
@@ -239,6 +260,14 @@ public final class WatsonHit {
         }
     }
 
+    /**
+     * Filtre et formatte le contenu des colonnes en fonction de leur
+     * description.
+     *
+     * @param wkColumns
+     * @param csvDescription
+     * @return
+     */
     private String[] filterAndFormatColumns(@NonNull String[] wkColumns, @NonNull CsvDescription csvDescription) {
         List<CsvColumnDescription> columnsDescriptions = csvDescription.getColumnsDescription();
         String[] columns = new String[wkColumns.length];
@@ -261,10 +290,26 @@ public final class WatsonHit {
         return columns;
     }
 
+    /**
+     * Finalise le fichier de travail.
+     *
+     * @param writer
+     * @throws IOException
+     */
     private void finalizeWorkingFile(@NonNull Writer writer) throws IOException {
         writer.write(String.format("</table></div><p>Document généré le %s</p></body>", DateFormatUtils.format(new Date(), "dd/MM/yyyy à HH:mm:ss")));
     }
 
+    /**
+     * Insère le résultats des comparaisons dans le fichier.
+     *
+     * @param writer
+     * @param csvDescription
+     * @param columns1
+     * @param columns2
+     * @param similarity
+     * @throws IOException
+     */
     private void insertResultInWorkingFile(Writer writer, CsvDescription csvDescription, String[] columns1, String[] columns2, double similarity) throws IOException {
         StringBuilder sb1 = new StringBuilder();
         StringBuilder sb2 = new StringBuilder();
@@ -284,8 +329,9 @@ public final class WatsonHit {
 
     /**
      * Initialise le contenu du fichier de travail
-     * @param workingFile 
-     * @param csvDescription 
+     *
+     * @param workingFile
+     * @param csvDescription
      */
     private void intializeWorkingFile(@NonNull Writer writer, @NonNull CsvDescription csvDescription) throws IOException {
         writer.write("<!DOCTYPE html>"
@@ -351,23 +397,39 @@ public final class WatsonHit {
      * @return
      * @throws ParseException
      */
-    private WatsonHitParameters parseArguments(@NonNull String[] args, @NonNull Options options) throws BusinessException {
+    private WatsonHitParameters parseArguments(@NonNull String[] args, @NonNull Options options, @NonNull Options helpOptions) throws BusinessException {
         try {
             CommandLineParser parser = new DefaultParser();
-            CommandLine cmd = parser.parse(options, args);
 
-            return new WatsonHitParameters(
-                    cmd.hasOption("csvDelimiter") ? cmd.getOptionValue("csvDelimiter") : CsvReader.DEFAULT_DELIMITER,
-                    cmd.getOptionValue("csvDescriptorFile"),
-                    cmd.getOptionValue("csvFile"),
-                    cmd.hasOption("minSimilarity") ? Double.parseDouble(cmd.getOptionValue("minSimilarity")) : 0.0,
-                    cmd.getOptionValue("resultFile"));
+            CommandLine cmd = parser.parse(helpOptions, args, true);
+
+            WatsonHitParameters parameters;
+
+            if (cmd.hasOption("help")) {
+                parameters = new WatsonHitParameters(true);
+            } else {
+                cmd = parser.parse(options, args);
+                parameters = new WatsonHitParameters(
+                        cmd.hasOption("csvDelimiter") ? cmd.getOptionValue("csvDelimiter") : CsvReader.DEFAULT_DELIMITER,
+                        cmd.getOptionValue("csvDescriptorFile"),
+                        cmd.getOptionValue("csvFile"),
+                        cmd.hasOption("minSimilarity") ? Double.parseDouble(cmd.getOptionValue("minSimilarity")) : 0.0,
+                        cmd.getOptionValue("resultFile"));
+            }
+            return parameters;
         } catch (ParseException e) {
             LOGGER.error(e);
+            outputStream.println();
+            displayHelp(options);
             throw BusinessExceptions.argumentsError.build();
         }
     }
 
+    /**
+     * Affiche un texte mis en forme sur le flux de sortie spécifié.
+     *
+     * @param s
+     */
     private void printPadded(@NonNull String s) {
         outputStream.print(StringUtils.rightPad(s, LINELENGTH));
         outputStream.flush();
@@ -387,10 +449,10 @@ public final class WatsonHit {
     private File run(@NonNull String fileName, @NonNull CsvDescription csvDescription, @NonNull String csvDelimiter, int nbCsvLines, double minSimilarity) throws BusinessException {
         try {
             File workingFile = File.createTempFile("watsonHit", ".temp");
-            
+
             try (BufferedWriter writer = new BufferedWriter(new FileWriter(workingFile))) {
                 intializeWorkingFile(writer, csvDescription);
-                
+
                 CsvReader.Builder builder = CsvReader.builder(fileName).setDelimiter(csvDelimiter);
                 CsvReader mainReader = builder.build();
 
@@ -447,15 +509,15 @@ public final class WatsonHit {
                 }
                 outputStream.println();
                 mainReader.close();
-                
+
                 finalizeWorkingFile(writer);
-                
+
                 writer.flush();
             }
             return workingFile;
         } catch (IOException e) {
             LOGGER.error(e);
-            throw BusinessExceptions.argumentsError.build();
+            throw BusinessExceptions.ioError.build();
         }
     }
 }

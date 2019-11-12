@@ -15,11 +15,21 @@ class WatsonHitParameters {
 
     @NonNull
     private final String csvFile;
+    
+    private boolean helpMode;
 
     private double minSimilarity;
     
     @NonNull
     private final String resultFile;
+
+    WatsonHitParameters(boolean helpMode) {
+        this.csvDelimiter = null;
+        this.csvDescriptorFile = null;
+        this.csvFile = null;
+        this.helpMode = helpMode;
+        this.resultFile = null;
+    }
 
     WatsonHitParameters(String csvDelimiter, String csvDescriptorFile, String csvFile, double minSimilarity, String resultFile) {
         if (minSimilarity < 0.0 || minSimilarity > 100.0) {
