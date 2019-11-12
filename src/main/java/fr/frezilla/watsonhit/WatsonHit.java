@@ -12,8 +12,10 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.io.Writer;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import java.util.function.Consumer;
 import lombok.NonNull;
 import me.tongfei.progressbar.ProgressBar;
 import me.tongfei.progressbar.ProgressBarStyle;
@@ -456,8 +458,10 @@ public final class WatsonHit {
                 CsvReader.Builder builder = CsvReader.builder(fileName).setDelimiter(csvDelimiter);
                 CsvReader mainReader = builder.build();
 
-                SimilarityAlgorithm jaroAlgo = SimilarityAlgorithms.JARO.getAlgorithm();
-                SimilarityAlgorithm jaroWinklerAlgo = SimilarityAlgorithms.JARO_WINKLER.getAlgorithm();
+                List<SimilarityAlgorithm> algos = new ArrayList<>();
+                algos.add(SimilarityAlgorithms.JARO.getAlgorithm());
+                algos.add(SimilarityAlgorithms.JARO_WINKLER.getAlgorithm());
+                algos.add(SimilarityAlgorithms.LEVENSTEIN.getAlgorithm());
 
                 List<CsvColumnDescription> columnsDescriptions = csvDescription.getColumnsDescription();
 
@@ -479,25 +483,27 @@ public final class WatsonHit {
                                 String[] currentColumns = wkColumns;
                                 String[] currentColumnsToCompare = filterAndFormatColumns(currentColumns, csvDescription);
 
-                                double similarity = 0.0;
-                                double totalWeight = 0.0;
+                                float similarity = 0.0f;
+                                float totalWeight = 0.0f;
                                 for (int i = 0; i < mainColumnsToCompare.length; i++) {
-                                    double weight = columnsDescriptions.get(i).getWeight();
+                                    float weight = columnsDescriptions.get(i).getWeight();
                                     if (weight != 0.0 && mainColumnsToCompare[i] != null && currentColumnsToCompare[i] != null) {
                                         if (mainColumnsToCompare[i].length() == 0 || currentColumnsToCompare[i].length() == 0) {
-                                            similarity += 0.0;
+                                            similarity += 0.0f;
                                         } else if (mainColumnsToCompare[i].equals(currentColumns[i])) {
-                                            similarity += 1.0 * weight;
+                                            similarity += 1.0f * weight;
                                         } else {
-                                            double d1 = jaroAlgo.getHitRate(mainColumnsToCompare[i], currentColumnsToCompare[i]);
-                                            double d2 = jaroWinklerAlgo.getHitRate(mainColumnsToCompare[i], currentColumnsToCompare[i]);
+                                            float sum = 0.0f;
+                                            for (SimilarityAlgorithm algo: algos) {
+                                                sum += algo.getHitRate(mainColumnsToCompare[i], currentColumns[i]);
+                                            }
 
-                                            similarity += weight * (d1 + d2) / 2;
+                                            similarity += weight * sum / algos.size();
                                         }
                                         totalWeight += weight;
                                     }
                                 }
-                                similarity = (totalWeight == 0.0) ? 0.0 : similarity / totalWeight * 100.0;
+                                similarity = (totalWeight == 0.0f) ? 0.0f : similarity / totalWeight * 100.0f;
                                 if (similarity >= minSimilarity) {
                                     insertResultInWorkingFile(writer, csvDescription, mainColumns, currentColumns, similarity);
                                 }

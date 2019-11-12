@@ -16,6 +16,6 @@ public interface SimilarityAlgorithm {
      * @param s2 2ème chaine de caractères à traiter
      * @return Taux de similarité
      */
-    double getHitRate(String s1, String s2);
+    float getHitRate(String s1, String s2);
     
 }

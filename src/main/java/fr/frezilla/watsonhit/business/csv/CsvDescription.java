@@ -85,7 +85,7 @@ public class CsvDescription {
                 builder.matchCase();
             }
             if (StringUtils.isNotBlank(weight)) {
-                builder.setWeight(Double.parseDouble(weight));
+                builder.setWeight(Float.parseFloat(weight));
             }
             columnsDefinitions.add(builder.build());
         }

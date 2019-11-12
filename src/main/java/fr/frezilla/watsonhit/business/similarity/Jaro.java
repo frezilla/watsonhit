@@ -24,7 +24,7 @@ final class Jaro implements SimilarityAlgorithm {
      * @param s2
      * @return Distance entre 0 et 1
      */
-    private double compute(@NonNull String s1, @NonNull String s2) {
+    private float compute(@NonNull String s1, @NonNull String s2) {
         final int s1Length = s1.length();
         final int s2Length = s2.length();
 
@@ -57,9 +57,9 @@ final class Jaro implements SimilarityAlgorithm {
             }
         }
 
-        double rate;
+        float rate;
         if (matches == 0) {
-            rate = 0.0;
+            rate = 0.0f;
         } else {
             int k = 0;
 
@@ -75,23 +75,23 @@ final class Jaro implements SimilarityAlgorithm {
                 }
             }
 
-            double m = (double) matches;
-            double t = transpositions / 2.0;
+            float m = (float) matches;
+            float t = transpositions / 2.0f;
 
-            rate = ((m / s1Length) + (m / s2Length) + ((m - t) / m)) / 3.0;
+            rate = ((m / s1Length) + (m / s2Length) + ((m - t) / m)) / 3.0f;
         }
         return rate;
     }
 
     @Override
-    public double getHitRate(@NonNull String s1, @NonNull String s2) {
+    public float getHitRate(@NonNull String s1, @NonNull String s2) {
         final int s1Length = s1.length();
         final int s2Length = s2.length();
 
-        double rate;
+        float rate;
 
         if (s1Length == 0 && s2Length == 0) {
-            rate = 0.0;
+            rate = 0.0f;
         } else {
             rate = compute(s1, s2);
         }

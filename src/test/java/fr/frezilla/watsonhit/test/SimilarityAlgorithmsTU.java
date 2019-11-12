@@ -6,6 +6,16 @@ import org.junit.Test;
 import org.junit.jupiter.api.Assertions;
 
 public class SimilarityAlgorithmsTU {
+    
+    @Test
+    public void testJaccard() {
+        SimilarityAlgorithm algo = SimilarityAlgorithms.JACCARD.getAlgorithm();
+        
+        Assertions.assertEquals(0.813, TestUtils.floor(algo.getHitRate("DIXON", "DICKSONX")));
+        Assertions.assertEquals(0.84, TestUtils.floor(algo.getHitRate("DWAYNE", "DUANE")));
+        Assertions.assertEquals(0.961, TestUtils.floor(algo.getHitRate("MARTHA", "MARHTA")));
+        Assertions.assertEquals(0.896, TestUtils.floor(algo.getHitRate("JELLYFISH", "SMELLYFISH")));
+    }
         
     @Test
     public void testJaro() {
@@ -25,6 +35,16 @@ public class SimilarityAlgorithmsTU {
         Assertions.assertEquals(0.84, TestUtils.floor(algo.getHitRate("DWAYNE", "DUANE")));
         Assertions.assertEquals(0.961, TestUtils.floor(algo.getHitRate("MARTHA", "MARHTA")));
         Assertions.assertEquals(0.896, TestUtils.floor(algo.getHitRate("JELLYFISH", "SMELLYFISH")));
+    }
+    
+    @Test
+    public void testLevenshtein() {
+        SimilarityAlgorithm algo = SimilarityAlgorithms.LEVENSTEIN.getAlgorithm();
+        
+//        Assertions.assertEquals(0.813, TestUtils.floor(algo.getHitRate("DIXON", "DICKSONX")));
+//        Assertions.assertEquals(0.84, TestUtils.floor(algo.getHitRate("DWAYNE", "DUANE")));
+//        Assertions.assertEquals(0.961, TestUtils.floor(algo.getHitRate("MARTHA", "MARHTA")));
+//        Assertions.assertEquals(0.896, TestUtils.floor(algo.getHitRate("JELLYFISH", "SMELLYFISH")));
     }
     
 }

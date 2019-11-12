@@ -62,20 +62,20 @@ final class Levenshtein implements SimilarityAlgorithm {
     }
 
     @Override
-    public double getHitRate(@NonNull String s1, @NonNull String s2) {
+    public float getHitRate(@NonNull String s1, @NonNull String s2) {
         final int s1Length = s1.length();
         final int s2Length = s2.length();
 
-        double hitRate;
+        float hitRate;
 
         if (s1Length == 0 && s2Length == 0) {
-            hitRate = 1.0;
+            hitRate = 1.0f;
         } else {
             int distance = calculate(s1, s2);
             if (s1Length < s2Length) {
-                hitRate = 1.0 - ((double) distance / s2Length);
+                hitRate = 1.0f - ((float) distance / s2Length);
             } else {
-                hitRate = 1.0 - ((double) distance / s1Length);
+                hitRate = 1.0f - ((float) distance / s1Length);
             }
         }
 

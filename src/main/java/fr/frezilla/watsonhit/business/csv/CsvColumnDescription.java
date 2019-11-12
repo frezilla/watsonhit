@@ -16,7 +16,7 @@ public final class CsvColumnDescription {
     private boolean ignoreSpecialCharacters;
     private boolean matchCase;
     private final String name;
-    private double weight;
+    private float weight;
 
     private CsvColumnDescription(@NonNull String n) {
         if (StringUtils.isEmpty(n)) {
@@ -33,8 +33,8 @@ public final class CsvColumnDescription {
         description = d;
     }
 
-    private void setWeight(double w) {
-        if (w < 0.0 || w > 1.0) {
+    private void setWeight(float w) {
+        if (w < 0.0f || w > 1.0f) {
             throw new IllegalArgumentException("weight must be between 0.0 and 1.0");
         }
         weight = w;
@@ -62,7 +62,7 @@ public final class CsvColumnDescription {
         private boolean ignoreSpecialCharacters = false;
         private boolean matchCase = true;
         private final String name;
-        private double weight = 0.0;
+        private float weight = 0.0f;
 
         public Builder(String name) {
             this.name = name;
@@ -120,7 +120,7 @@ public final class CsvColumnDescription {
             return null;
         }
 
-        public Builder setWeight(double w) {
+        public Builder setWeight(float w) {
             this.weight = w;
             return this;
         }

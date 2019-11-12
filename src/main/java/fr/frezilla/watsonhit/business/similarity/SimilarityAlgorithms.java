@@ -16,6 +16,7 @@ package fr.frezilla.watsonhit.business.similarity;
  * </ul>
  */
 public enum SimilarityAlgorithms {
+    JACCARD(new Jaccard()),
     JARO(new Jaro()),
     JARO_WINKLER(new JaroWinkler()),
     LEVENSTEIN(new Levenshtein());

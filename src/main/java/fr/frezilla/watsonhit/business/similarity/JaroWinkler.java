@@ -26,11 +26,11 @@ final class JaroWinkler implements SimilarityAlgorithm {
     }
 
     @Override
-    public double getHitRate(@NonNull String s1, @NonNull String s2) {
-        double dj = algo.getHitRate(s1, s2);
-        double p = 0.1;
+    public float getHitRate(@NonNull String s1, @NonNull String s2) {
+        float dj = algo.getHitRate(s1, s2);
+        float p = 0.1f;
 
-        double l = 0;
+        float l = 0.0f;
         int scanLength = Math.min(Math.min(s1.length(), s2.length()), 4);
         for (int i = 0; i < scanLength; i++) {
             if (s1.charAt(i) == s2.charAt(i)) {
