@@ -12,10 +12,8 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.io.Writer;
-import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
-import java.util.function.Consumer;
 import lombok.NonNull;
 import me.tongfei.progressbar.ProgressBar;
 import me.tongfei.progressbar.ProgressBarStyle;
@@ -254,10 +252,10 @@ public final class WatsonHit {
 
             outputStream.println("Fin du traitement, consultez le fichier <" + parameters.getResultFile() + "> pour visualiser le résultat du traitement");
         } catch (BusinessException e) {
-            outputStream.println("[KO]\nL'erreur ci-dessous a été détectée, activez le mode debug pour avoir plus d'informations sur l'origine du problème.");
+            outputStream.println("[KO]\nL'erreur ci-dessous a été détectée, consulter le fichier des traces pour avoir plus d'informations sur l'origine du problème.");
             outputStream.println("-> " + e.getMessage());
         } catch (Exception e) {
-            outputStream.println("[KO]\nErreur bloquante non gérée, activez le mode debug pour avoir plus d'informations sur l'origine du problème.");
+            outputStream.println("[KO]\nErreur bloquante non gérée, consulter le fichier des traces pour avoir plus d'informations sur l'origine du problème.");
             outputStream.println(e);
         }
     }
@@ -299,20 +297,24 @@ public final class WatsonHit {
      * @throws IOException
      */
     private void finalizeWorkingFile(@NonNull Writer writer) throws IOException {
-        writer.write(String.format("</table></div><p>Document généré le %s</p></body>", DateFormatUtils.format(new Date(), "dd/MM/yyyy à HH:mm:ss")));
+        Date now = new Date();
+        writer.write(String.format("\t</table>\n</div>\n<p>Document g&eacute;n&eacute;r&eacute; le %s &agrave; </p>\n</body>", DateFormatUtils.format(now, "dd/MM/yyyy"),  DateFormatUtils.format(now, "HH:mm:ss")));
     }
 
     /**
      * Insère le résultats des comparaisons dans le fichier.
-     *
+     * 
      * @param writer
      * @param csvDescription
      * @param columns1
      * @param columns2
-     * @param similarity
-     * @throws IOException
+     * @param similarityJaccard
+     * @param similarityJaro
+     * @param similarityJaro_winkler
+     * @param similarityLevenstein
+     * @throws IOException 
      */
-    private void insertResultInWorkingFile(Writer writer, CsvDescription csvDescription, String[] columns1, String[] columns2, double similarity) throws IOException {
+    private void insertResultInWorkingFile(Writer writer, CsvDescription csvDescription, String[] columns1, String[] columns2, float similarityJaccard, float similarityJaro, float similarityJaro_winkler, float similarityLevenstein) throws IOException {
         StringBuilder sb1 = new StringBuilder();
         StringBuilder sb2 = new StringBuilder();
 
@@ -326,7 +328,11 @@ public final class WatsonHit {
             }
             i++;
         }
-        writer.write("<tr>" + sb1.toString() + sb2.toString() + String.format("<td>%.2f</td>", similarity) + "</tr>");
+        writer.write("\t\t<tr>" + sb1.toString() + sb2.toString() 
+                + String.format("<td>%.2f</td>", similarityJaccard) 
+                + String.format("<td>%.2f</td>", similarityJaro) 
+                + String.format("<td>%.2f</td>", similarityJaro_winkler)
+                + String.format("<td>%.2f</td>", similarityLevenstein) + "</tr>\n");
     }
 
     /**
@@ -336,33 +342,34 @@ public final class WatsonHit {
      * @param csvDescription
      */
     private void intializeWorkingFile(@NonNull Writer writer, @NonNull CsvDescription csvDescription) throws IOException {
-        writer.write("<!DOCTYPE html>"
-                + "<html>"
-                + "<head>"
-                + "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">"
-                + "<style>"
-                + "table {"
-                + "border-collapse: collapse;"
-                + "border-spacing: 0;"
-                + "width: 100%;"
-                + "border: 1px solid #ddd;"
-                + "}"
-                + " "
-                + "th, td {"
-                + "text-align: left;"
-                + "padding: 8px;"
-                + "}"
-                + " "
-                + "tr:nth-child(even){background-color: #f2f2f2}"
-                + "</style>"
-                + "</head>"
-                + "<body>"
-                + " "
-                + "<h2>Résultat de la recherche lignes similaires</h2>"
-                + " "
-                + "<div style=\"overflow-x:auto;\">"
-                + "<table>"
-                + "<tr>");
+        writer.write("<!DOCTYPE html>\n"
+                + "<html>\n"
+                + "<head>\n"
+                + "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n"
+                + "<meta charset=\"utf-8\">\n"
+                + "<style>\n"
+                + "table {\n"
+                + "\tborder-collapse: collapse;\n"
+                + "\tborder-spacing: 0;\n"
+                + "\twidth: 100%;\n"
+                + "\tborder: 1px solid #ddd;\n"
+                + "}\n"
+                + "\n"
+                + "th, td {\n"
+                + "\ttext-align: left;\n"
+                + "\tpadding: 8px;\n"
+                + "}\n"
+                + "\n"
+                + "tr:nth-child(even){background-color: #f2f2f2}\n"
+                + "</style>\n"
+                + "</head>\n"
+                + "<body>\n"
+                + "\n"
+                + "<h2>R&eacute;sultat de la recherche lignes similaires</h2>\n"
+                + "\n"
+                + "<div style=\"overflow-x:auto;\">\n"
+                + "\t<table>\n"
+                + "\t\t<tr>");
         List<CsvColumnDescription> columnsDescriptions = csvDescription.getColumnsDescription();
         StringBuilder sb1 = new StringBuilder();
         StringBuilder sb2 = new StringBuilder();
@@ -372,7 +379,7 @@ public final class WatsonHit {
                 sb2.append("<th>").append(d.getName()).append("&nbsp;<small>(2)</small></th>");
             }
         });
-        writer.write(sb1.toString() + sb2.toString() + "<th>Taux</th></tr>");
+        writer.write(sb1.toString() + sb2.toString() + "<th>Taux Jaccob</th><th>Taux Jaro</th><th>Taux Jaro-Winkler</th><th>Taux Levenstein</th></tr>\n");
     }
 
     /**
@@ -458,10 +465,10 @@ public final class WatsonHit {
                 CsvReader.Builder builder = CsvReader.builder(fileName).setDelimiter(csvDelimiter);
                 CsvReader mainReader = builder.build();
 
-                List<SimilarityAlgorithm> algos = new ArrayList<>();
-                algos.add(SimilarityAlgorithms.JARO.getAlgorithm());
-                algos.add(SimilarityAlgorithms.JARO_WINKLER.getAlgorithm());
-                algos.add(SimilarityAlgorithms.LEVENSTEIN.getAlgorithm());
+                SimilarityAlgorithm jaccard = SimilarityAlgorithms.JACCARD.getAlgorithm();
+                SimilarityAlgorithm jaro = SimilarityAlgorithms.JARO.getAlgorithm();
+                SimilarityAlgorithm jaro_winkler = SimilarityAlgorithms.JARO_WINKLER.getAlgorithm();
+                SimilarityAlgorithm levenstein = SimilarityAlgorithms.LEVENSTEIN.getAlgorithm();
 
                 List<CsvColumnDescription> columnsDescriptions = csvDescription.getColumnsDescription();
 
@@ -483,29 +490,55 @@ public final class WatsonHit {
                                 String[] currentColumns = wkColumns;
                                 String[] currentColumnsToCompare = filterAndFormatColumns(currentColumns, csvDescription);
 
-                                float similarity = 0.0f;
+                                float similarityJaccard = 0.0f;
+                                float similarityJaro = 0.0f;
+                                float similarityJaro_winkler = 0.0f;
+                                float similarityLevenstein = 0.0f;
+                                
                                 float totalWeight = 0.0f;
                                 for (int i = 0; i < mainColumnsToCompare.length; i++) {
                                     float weight = columnsDescriptions.get(i).getWeight();
                                     if (weight != 0.0 && mainColumnsToCompare[i] != null && currentColumnsToCompare[i] != null) {
                                         if (mainColumnsToCompare[i].length() == 0 || currentColumnsToCompare[i].length() == 0) {
-                                            similarity += 0.0f;
+                                            similarityJaccard += 0.0f;
+                                            similarityJaro += 0.0f;
+                                            similarityJaro_winkler += 0.0f;
+                                            similarityLevenstein += 0.0f;
                                         } else if (mainColumnsToCompare[i].equals(currentColumns[i])) {
-                                            similarity += 1.0f * weight;
+                                            similarityJaccard += 1.0f * weight;
+                                            similarityJaro += 1.0f * weight;
+                                            similarityJaro_winkler += 1.0f * weight;
+                                            similarityLevenstein += 1.0f * weight;
                                         } else {
-                                            float sum = 0.0f;
-                                            for (SimilarityAlgorithm algo: algos) {
-                                                sum += algo.getHitRate(mainColumnsToCompare[i], currentColumns[i]);
-                                            }
-
-                                            similarity += weight * sum / algos.size();
+                                            similarityJaccard += weight * jaccard.getHitRate(mainColumnsToCompare[i], currentColumns[i]);
+                                            similarityJaro += weight * jaro.getHitRate(mainColumnsToCompare[i], currentColumns[i]);
+                                            similarityJaro_winkler += weight * jaro_winkler.getHitRate(mainColumnsToCompare[i], currentColumns[i]);
+                                            similarityLevenstein += weight * levenstein.getHitRate(mainColumnsToCompare[i], currentColumns[i]);
+                                            
                                         }
                                         totalWeight += weight;
                                     }
                                 }
-                                similarity = (totalWeight == 0.0f) ? 0.0f : similarity / totalWeight * 100.0f;
-                                if (similarity >= minSimilarity) {
-                                    insertResultInWorkingFile(writer, csvDescription, mainColumns, currentColumns, similarity);
+                                
+                                similarityJaccard = (totalWeight == 0.0f) ? 0.0f : similarityJaccard / totalWeight * 100.0f;
+                                similarityJaro = (totalWeight == 0.0f) ? 0.0f : similarityJaro / totalWeight * 100.0f;
+                                similarityJaro_winkler = (totalWeight == 0.0f) ? 0.0f : similarityJaro_winkler / totalWeight * 100.0f;
+                                similarityLevenstein = (totalWeight == 0.0f) ? 0.0f : similarityLevenstein / totalWeight * 100.0f;
+                                
+                                if (similarityJaccard >= minSimilarity 
+                                        || similarityJaro >= minSimilarity 
+                                        || similarityJaro_winkler >= minSimilarity 
+                                        || similarityLevenstein >= minSimilarity) {
+                                    insertResultInWorkingFile(
+                                            writer, 
+                                            csvDescription, 
+                                            mainColumns, 
+                                            currentColumns, 
+                                            similarityJaccard,
+                                            similarityJaro,
+                                            similarityJaro_winkler,
+                                            similarityLevenstein
+                                    );
                                 }
                             }
                         }

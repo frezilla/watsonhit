@@ -30,7 +30,7 @@ final class Jaccard implements SimilarityAlgorithm {
             coef = intersection / (float) (list1.size() + list2.size() - intersection);
         }
         
-        return 1 - coef;
+        return coef;
     }
 
     private List<String> splitString(@NonNull String s, int ngrams) {
